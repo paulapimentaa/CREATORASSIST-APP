@@ -1,58 +1,67 @@
 import { createClient } from "@/lib/supabase/server";
-import Link from "next/link";
+import { notFound } from "next/navigation";
 
-export default async function DashboardPage() {
+export default async function ProjectPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const supabase = createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: projects } = await supabase
+  if (!user) notFound();
+
+  const { data: project } = await supabase
     .from("projects")
-    .select("id, name, status, created_at")
-    .order("created_at", { ascending: false });
+    .select("*")
+    .eq("id", params.id)
+    .eq("user_id", user.id)
+    .single();
+
+  if (!project) notFound();
+
+  const { data: media } = await supabase
+    .from("media")
+    .select("*")
+    .eq("project_id", project.id)
+    .order("order_index", { ascending: true });
 
   return (
     <main className="mx-auto max-w-md px-4 py-8">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <p className="text-sm text-neutral-500">Olá,</p>
-          <p className="font-medium">{user?.email}</p>
-        </div>
-      </header>
-
-      <Link
-        href="/dashboard/new"
-
-        className="mb-6 block w-full rounded-xl bg-neutral-900 px-4 py-4 text-center font-medium text-white"
-      >
-        + Criar novo vídeo
-      </Link>
+      <h1 className="mb-1 text-xl font-semibold">{project.name}</h1>
+      <p className="mb-6 text-sm text-neutral-500">
+        Status: <span className="font-medium">{project.status}</span>
+      </p>
 
       <section>
         <h2 className="mb-3 text-sm font-medium text-neutral-500">
-          Meus projetos
+          Vídeos enviados ({media?.length ?? 0})
         </h2>
 
-        {!projects || projects.length === 0 ? (
+        {!media || media.length === 0 ? (
           <p className="rounded-xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500">
-            Você ainda não criou nenhum vídeo. Toque em "Criar novo vídeo"
-            para começar.
+            Nenhum vídeo enviado ainda.
           </p>
         ) : (
           <ul className="space-y-2">
-            {projects.map((p) => (
-              <li key={p.id}>
-                <Link
-                  href={`/dashboard/projects/${p.id}`}
-                  className="flex items-center justify-between rounded-xl border border-neutral-200 px-4 py-3"
-                >
-                  <span className="font-medium">{p.name}</span>
-                  <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs text-neutral-600">
-                    {p.status}
-                  </span>
-                </Link>
+            {media.map((m) => (
+              <li
+                key={m.id}
+                className="rounded-lg border border-neutral-200 px-3 py-2"
+              >
+                <p className="truncate text-sm font-medium">
+                  {m.original_filename}
+                </p>
+                <p className="text-xs text-neutral-500">
+                  {m.duration_seconds
+                    ? `${m.duration_seconds.toFixed(1)}s`
+                    : "duração desconhecida"}{" "}
+                  · {m.width}×{m.height} ·{" "}
+                  {(m.file_size_bytes / 1024 / 1024).toFixed(1)}MB
+                </p>
               </li>
             ))}
           </ul>
